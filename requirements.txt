@@ -1,0 +1,25 @@
+# FastAPI & Web Server
+fastapi>=0.110.0
+uvicorn[standard]>=0.28.0
+pydantic>=2.6.4
+pydantic-settings>=2.2.1
+
+# Database & ORM
+sqlalchemy>=2.0.28
+pymysql>=1.1.0
+cryptography>=42.0.5
+
+# Celery & Message Queue
+celery>=5.3.6
+kombu>=5.3.5
+amqp>=5.2.0
+
+# NLP Engines
+spacy>=3.7.4
+transformers>=4.38.2
+torch>=2.2.0
+
+# Testing & HTTP Client
+pytest>=8.0.2
+pytest-asyncio>=0.23.5
+httpx>=0.27.0
