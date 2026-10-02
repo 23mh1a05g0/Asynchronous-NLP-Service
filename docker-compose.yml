@@ -1,0 +1,80 @@
+services:
+  # MySQL 8+ Database Service
+  db:
+    image: mysql:8.0
+    container_name: nlp_mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-nlp_root_password}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-nlp_db}
+      MYSQL_USER: ${MYSQL_USER:-nlp_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-nlp_password}
+    ports:
+      - "3308:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u $${MYSQL_USER} -p$${MYSQL_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # RabbitMQ Message Broker with Management UI
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: nlp_rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # FastAPI API Service
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nlp_api
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-nlp_user}:${MYSQL_PASSWORD:-nlp_password}@db:3306/${MYSQL_DATABASE:-nlp_db}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-amqp://guest:guest@rabbitmq:5672//}
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  # Celery Asynchronous NLP Worker Service
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nlp_worker
+    restart: unless-stopped
+    command: celery -A app.celery_app.celery_instance worker --loglevel=info
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-nlp_user}:${MYSQL_PASSWORD:-nlp_password}@db:3306/${MYSQL_DATABASE:-nlp_db}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-amqp://guest:guest@rabbitmq:5672//}
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
+    driver: local
